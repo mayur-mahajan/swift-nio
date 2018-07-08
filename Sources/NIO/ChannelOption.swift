@@ -186,10 +186,64 @@ public enum AllowRemoteHalfClosureOption: ChannelOption {
     case const(())
 }
 
+public typealias IPOptionName = Int32
+
+public enum Membership {
+    case ipv4(ip_mreq)
+    case ipv6(ipv6_mreq)
+    
+    public init(address: in_addr) {
+        self = .ipv4(ip_mreq(imr_multiaddr: address,
+                             imr_interface: in_addr(s_addr: UInt32(bigEndian: INADDR_ANY))))
+    }
+    
+    public init?(address: SocketAddress) {
+        switch address {
+        case .v4(let sin):
+            self = .ipv4(ip_mreq(imr_multiaddr: sin.address.sin_addr,
+                                 imr_interface: in_addr(s_addr: UInt32(bigEndian: INADDR_ANY))))
+        case .v6(let sin6):
+            /// @todo the interface number must be 1 on my machine; but what's the correct way to find out?
+            self = .ipv6(ipv6_mreq(ipv6mr_multiaddr: sin6.address.sin6_addr,
+                                   ipv6mr_interface: 1))
+        default: return nil
+        }
+    }
+}
+
+/// `SocketOption` allows to specify configuration settings that are directly applied to the underlying socket file descriptor.
+///
+/// Valid options are typically found in the various man pages like `man 4 tcp`.
+public enum MembershipOption: ChannelOption {
+    public typealias AssociatedValueType = (IPOptionName)
+    
+    public typealias OptionType = (Membership)
+    
+    case const(AssociatedValueType)
+    
+    /// Create a new `MembershipOption`.
+    ///
+    /// - parameters:
+    ///       - name: The name of the option as defined in `man setsockopt`, e.g. `SO_REUSEADDR`.
+    public init(name: IPOptionName) {
+        self = .const(name)
+    }
+    
+    public var value: (IPOptionName) {
+        switch self {
+        case .const(let name):
+            return (name)
+        }
+    }
+}
+
+
 /// Provides `ChannelOption`s to be used with a `Channel`, `Bootstrap` or `ServerBootstrap`.
 public struct ChannelOptions {
     /// - seealso: `SocketOption`.
     public static let socket = { (level: SocketOptionLevel, name: SocketOptionName) -> SocketOption in .const((level, name)) }
+    
+    public static let multicastMembership = { (name: IPOptionName) -> MembershipOption in .const(name) }
 
     /// - seealso: `AllocatorOption`.
     public static let allocator = AllocatorOption.const(())

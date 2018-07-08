@@ -552,6 +552,15 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
         }
 
         switch option {
+        case _ as MembershipOption:
+            let name = option.value as! IPOptionName
+            let v = value as! Membership
+            switch v {
+            case .ipv4(let req):
+                try socket.setOption(level: Int32(IPPROTO_IP), name: name, value: req)
+            case .ipv6(let req6):
+                try socket.setOption(level: Int32(IPPROTO_IP), name: name, value: req6)
+            }
         case _ as WriteSpinOption:
             pendingWrites.writeSpinCount = value as! UInt
         case _ as WriteBufferWaterMarkOption:
